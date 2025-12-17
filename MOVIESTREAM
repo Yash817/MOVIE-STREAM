@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dhrundhar Cinema | Premium Co-Watch</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #050505;
+            --surface: #0f0f0f;
+            --surface-light: #1a1a1a;
+            --primary: #E50914; /* Netflix Red */
+            --accent: #ffb400; /* Gold for status */
+            --text: #ffffff;
+            --glass: rgba(20, 20, 20, 0.8);
+            --border: rgba(255, 255, 255, 0.1);
+            --shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Manrope', sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            height: 100vh; width: 100vw;
+            overflow: hidden;
+            background-image: radial-gradient(circle at 50% 0%, #1a0505 0%, #000000 80%);
+        }
+
+        /* --- 🔔 TOAST NOTIFICATIONS --- */
+        #toast-container {
+            position: fixed; top: 20px; right: 20px; z-index: 1000;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none;
+        }
+        .toast {
+            background: rgba(30, 30, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border-left: 4px solid var(--primary);
+            padding: 15px 20px; border-radius: 4px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            color: white; font-size: 0.9rem;
+            animation: slideIn 0.3s ease-out forwards;
+            pointer-events: auto; display: flex; align-items: center; gap: 10px;
+        }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+
+        /* --- 1. LOBBY (PRE-CHECK) --- */
+        #lobby-page {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100; display: flex; justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(20px);
+            transition: opacity 0.5s ease;
+        }
+
+        .lobby-card {
+            background: var(--surface); border: 1px solid var(--border);
+            width: 90%; max-width: 800px; height: 500px;
+            border-radius: 24px; display: flex; overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .lobby-preview {
+            flex: 1.5; background: #000; position: relative;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .lobby-preview video { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+        .preview-overlay { position: absolute; bottom: 20px; color: white; font-size: 0.9rem; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 20px; }
+
+        .lobby-controls {
+            flex: 1; padding: 40px; display: flex; flex-direction: column; justify-content: center;
+            background: linear-gradient(135deg, var(--surface) 0%, var(--surface-light) 100%);
+        }
+
+        h1 { font-size: 2rem; font-weight: 800; margin-bottom: 5px; }
+        .sub { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+
+        .input-group { margin-bottom: 20px; }
+        input {
+            width: 100%; padding: 14px; background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border); border-radius: 8px;
+            color: white; outline: none; transition: 0.3s;
+        }
+        input:focus { border-color: var(--primary); background: rgba(0,0,0,0.5); }
+
+        .action-btn {
+            width: 100%; padding: 14px; border-radius: 8px; border: none;
+            font-weight: 700; cursor: pointer; transition: 0.2s;
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+        }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(229, 9, 20, 0.3); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(229, 9, 20, 0.5); }
+        .btn-secondary { background: transparent; border: 1px solid var(--border); color: #ccc; margin-top: 10px; }
+        .btn-secondary:hover { border-color: white; color: white; }
+
+        /* --- 2. MAIN ROOM --- */
+        #room-page { display: none; width: 100%; height: 100%; position: relative; background: #000; }
+
+        /* Status Bar */
+        .top-bar {
+            position: absolute; top: 0; left: 0; width: 100%; height: 60px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
+            z-index: 50; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px;
+        }
+        .logo-small { font-weight: 800; letter-spacing: -1px; }
+        .status-pill {
+            display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
+            background: rgba(255,255,255,0.1); padding: 5px 12px; border-radius: 20px;
+            cursor: pointer; transition: 0.3s;
+        }
+        .status-pill:hover { background: rgba(255,255,255,0.2); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #444; box-shadow: 0 0 5px #444; transition: 0.3s; }
+        .dot.connected { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+
+        /* Cinema Stage */
+        .stage-area {
+            width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
+        }
+        video#main-screen { width: 100%; height: 100%; object-fit: contain; }
+        
+        .empty-state {
+            position: absolute; text-align: center; color: #555;
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+        }
+        .empty-icon { font-size: 4rem; opacity: 0.5; }
+
+        /* Sharing Badge */
+        .sharing-indicator {
+            position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+            background: rgba(229, 9, 20, 0.8); color: white; padding: 5px 15px;
+            border-radius: 20px; font-size: 0.75rem; font-weight: 600;
+            display: none; pointer-events: none; z-index: 40;
+        }
+
+        /* Camera Pip */
+        .pip-container {
+            position: absolute; right: 20px; top: 80px;
+            display: flex; flex-direction: column; gap: 15px; z-index: 45;
+        }
+        .pip-card {
+            width: 180px; height: 100px; background: #111;
+            border: 1px solid #333; border-radius: 10px; overflow: hidden;
+            position: relative; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            transition: transform 0.3s;
+        }
+        .pip-card:hover { transform: scale(1.05); border-color: var(--primary); }
+        .pip-card video { width: 100%; height: 100%; object-fit: cover; }
+        .pip-name { position: absolute; bottom: 5px; left: 5px; font-size: 0.65rem; background: rgba(0,0,0,0.7); padding: 2px 6px; border-radius: 4px; }
+
+        /* Controls Dock */
+        .dock {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: var(--glass); backdrop-filter: blur(15px);
+            padding: 12px 25px; border-radius: 50px;
+            display: flex; gap: 20px; border: 1px solid var(--border);
+            z-index: 60; transition: all 0.4s ease;
+        }
+        .dock.hidden { transform: translateX(-50%) translateY(100px); opacity: 0; }
+
+        .dock-btn {
+            background: rgba(255,255,255,0.05); border: none; color: white;
+            width: 50px; height: 50px; border-radius: 50%; font-size: 1.2rem;
+            cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center;
+        }
+        .dock-btn:hover { background: white; color: black; transform: translateY(-5px); }
+        .dock-btn.active { background: white; color: black; }
+        .dock-btn.red { background: rgba(229, 9, 20, 0.2); color: var(--primary); }
+        .dock-btn.red:hover { background: var(--primary); color: white; }
+
+        /* Chat Panel */
+        .chat-drawer {
+            position: absolute; left: 20px; bottom: 100px;
+            width: 320px; height: 400px;
+            background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 16px;
+            transform: translateX(-150%); transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+            z-index: 55; display: flex; flex-direction: column; overflow: hidden;
+        }
+        .chat-drawer.open { transform: translateX(0); }
+        
+        .chat-content { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .chat-bubble { padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; max-width: 85%; line-height: 1.4; }
+        .bubble-me { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 2px; }
+        .bubble-them { align-self: flex-start; background: #2a2a2a; color: #ddd; border-bottom-left-radius: 2px; }
+
+        .chat-input-row { padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; }
+        .chat-field { flex: 1; background: #111; border: none; color: white; padding: 10px; border-radius: 8px; outline: none; }
+
+        /* Audio Rescue Overlay */
+        #audio-rescue {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 200; display: none;
+            justify-content: center; align-items: center; flex-direction: column; gap: 20px;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .lobby-card { flex-direction: column; height: auto; margin-top: 50px; }
+            .lobby-preview { height: 250px; flex: none; }
+            .pip-container { flex-direction: row; top: 70px; left: 50%; transform: translateX(-50%); width: 95%; justify-content: center; }
+            .pip-card { width: 100px; height: 60px; }
+            .chat-drawer { width: 100%; height: 50%; bottom: 0; left: 0; border-radius: 20px 20px 0 0; transform: translateY(110%); }
+            .chat-drawer.open { transform: translateY(0); }
+            .dock { bottom: 20px; padding: 10px 15px; width: 90%; justify-content: space-between; gap: 5px; }
+            .dock-btn { width: 40px; height: 40px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div id="lobby-page">
+        <div class="lobby-card">
+            <div class="lobby-preview">
+                <video id="preview-video" muted autoplay playsinline></video>
+                <div class="preview-overlay"><i class="fas fa-video"></i> System Check</div>
+            </div>
+            <div class="lobby-controls">
+                <h1>Dhrundhar<span style="color:var(--primary)">.</span></h1>
+                <p class="sub">Create a private space. Watch together.</p>
+                
+                <button class="action-btn btn-primary" onclick="createRoom()">
+                    <i class="fas fa-plus-circle"></i> Create New Room
+                </button>
+                
+                <div style="text-align:center; margin: 15px 0; color:#444; font-size:0.8rem;">— OR JOIN EXISTING —</div>
+                
+                <div class="input-group">
+                    <input type="text" id="room-input" placeholder="Enter Room ID">
+                </div>
+                <button class="action-btn btn-secondary" onclick="joinRoom()">
+                    <i class="fas fa-sign-in-alt"></i> Join Room
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="room-page">
+        
+        <div class="top-bar">
+            <div class="logo-small">Dhrundhar<span style="color:var(--primary)">.</span></div>
+            <div class="status-pill" onclick="copyID()">
+                <div class="dot" id="status-dot"></div>
+                <span id="room-id-display">Connecting...</span>
+                <i class="fas fa-copy" style="opacity:0.5; margin-left:5px;"></i>
+            </div>
+        </div>
+
+        <div id="audio-rescue">
+            <i class="fas fa-volume-mute" style="font-size: 3rem; color: var(--primary);"></i>
+            <h2 style="font-weight: 300;">Browser Blocked Audio</h2>
+            <button class="action-btn btn-primary" style="width:auto; padding: 15px 40px;" onclick="enableAudio()">
+                TAP TO UNMUTE
+            </button>
+        </div>
+
+        <div class="stage-area">
+            <div class="empty-state" id="placeholder-ui">
+                <i class="fas fa-film empty-icon"></i>
+                <h3>Waiting for Screen Share...</h3>
+                <p style="font-size:0.9rem;">Click the <i class="fas fa-desktop"></i> icon below to start sharing.</p>
+            </div>
+            
+            <video id="main-screen" playsinline></video>
+            
+            <div class="sharing-indicator" id="share-badge">
+                <i class="fas fa-broadcast-tower"></i> YOU ARE SHARING
+            </div>
+        </div>
+
+        <div class="pip-container">
+            <div class="pip-card">
+                <video id="local-cam" muted autoplay playsinline></video>
+                <div class="pip-name">YOU</div>
+            </div>
+            <div class="pip-card">
+                <video id="remote-cam" autoplay playsinline></video>
+                <div class="pip-name">PARTNER</div>
+            </div>
+        </div>
+
+        <div class="chat-drawer" id="chat-ui">
+            <div class="chat-content" id="chat-box">
+                <div style="text-align:center; color:#555; font-size:0.8rem; margin-top:20px;">
+                    Room created. Messages are private.
+                </div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" class="chat-field" id="msg-input" placeholder="Type a message..." onkeypress="if(event.key==='Enter') sendMsg()">
+                <button class="dock-btn" style="width:40px; height:40px; background:var(--primary); font-size:0.9rem;" onclick="sendMsg()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="dock" id="dock-bar">
+            <button class="dock-btn" onclick="toggleMic()" id="btn-mic" title="Mic"><i class="fas fa-microphone"></i></button>
+            <button class="dock-btn" onclick="toggleCam()" id="btn-cam" title="Cam"><i class="fas fa-video"></i></button>
+            
+            <div style="width:1px; height:30px; background:rgba(255,255,255,0.1); align-self:center;"></div>
+            
+            <button class="dock-btn active" onclick="startShare()" title="Share Screen"><i class="fas fa-desktop"></i></button>
+            <button class="dock-btn" onclick="toggleChat()" id="btn-chat" title="Chat"><i class="fas fa-comment-dots"></i></button>
+            <button class="dock-btn" onclick="toggleFull()" title="Fullscreen"><i class="fas fa-expand"></i></button>
+            
+            <div style="width:1px; height:30px; background:rgba(255,255,255,0.1); align-self:center;"></div>
+            
+            <button class="dock-btn red" onclick="location.reload()" title="Disconnect"><i class="fas fa-power-off"></i></button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GLOBAL VARIABLES ---
+        const peer = new Peer();
+        let myId = null;
+        let conn = null; // Chat Data
+        let call = null; // Face Cam
+        let screenCall = null; // Screen Share
+        let localStream = null;
+        let screenStream = null;
+        let mouseTimer = null;
+
+        // --- DOM REFERENCES ---
+        const dom = {
+            lobby: document.getElementById('lobby-page'),
+            room: document.getElementById('room-page'),
+            preview: document.getElementById('preview-video'),
+            localCam: document.getElementById('local-cam'),
+            remoteCam: document.getElementById('remote-cam'),
+            mainScreen: document.getElementById('main-screen'),
+            placeholder: document.getElementById('placeholder-ui'),
+            shareBadge: document.getElementById('share-badge'),
+            audioRescue: document.getElementById('audio-rescue'),
+            chatDrawer: document.getElementById('chat-ui'),
+            chatBox: document.getElementById('chat-box'),
+            statusDot: document.getElementById('status-dot'),
+            roomIdDisplay: document.getElementById('room-id-display')
+        };
+
+        // --- 1. INITIALIZATION & PREVIEW ---
+        
+        // Auto-start camera for Lobby Preview
+        async function startLobbyCamera() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                dom.preview.srcObject = localStream;
+                dom.localCam.srcObject = localStream; // Ready for room
+                return true;
+            } catch (err) {
+                showToast("Camera Access Denied! Please Allow.", "error");
+                return false;
+            }
+        }
+        startLobbyCamera();
+
+        peer.on('open', id => {
+            myId = id;
+            console.log('My ID:', id);
+        });
+
+        peer.on('connection', c => {
+            conn = c;
+            setupChat();
+            showToast("Partner Joined!", "success");
+            updateStatus(true);
+        });
+
+        peer.on('call', incoming => {
+            if (incoming.metadata && incoming.metadata.type === 'screen') {
+                // === INCOMING SCREEN SHARE ===
+                incoming.answer();
+                incoming.on('stream', stream => {
+                    handleIncomingScreen(stream);
+                });
+            } else {
+                // === INCOMING FACE CAM ===
+                incoming.answer(localStream);
+                call = incoming;
+                incoming.on('stream', stream => {
+                    dom.remoteCam.srcObject = stream;
+                });
+            }
+        });
+
+        // --- 2. ROOM LOGIC ---
+
+        function createRoom() {
+            if (!myId || !localStream) return showToast("Initializing... wait a sec.", "error");
+            dom.roomIdDisplay.innerText = myId;
+            enterRoom();
+            showToast("Room Created! Click ID to Copy.", "success");
+        }
+
+        function joinRoom() {
+            const joinId = document.getElementById('room-input').value.trim();
+            if (!joinId || !localStream) return showToast("Enter a valid ID", "error");
+
+            conn = peer.connect(joinId);
+            setupChat();
+            
+            // Call them with my face cam
+            call = peer.call(joinId, localStream, { metadata: { type: 'cam' } });
+            call.on('stream', stream => {
+                dom.remoteCam.srcObject = stream;
+            });
+
+            dom.roomIdDisplay.innerText = joinId;
+            enterRoom();
+            showToast("Connecting...", "success");
+            updateStatus(true);
+        }
+
+        function enterRoom() {
+            dom.lobby.style.opacity = 0;
+            setTimeout(() => {
+                dom.lobby.style.display = 'none';
+                dom.room.style.display = 'block';
+                initImmersiveControls();
+            }, 500);
+        }
+
+        // --- 3. SCREEN SHARING (FIXED) ---
+
+        async function startShare() {
+            if (!conn) return showToast("Wait for partner to join first!", "error");
+
+            try {
+                // Request Screen + System Audio
+                screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: "always" },
+                    audio: true
+                });
+
+                // ✅ FIX 1: SHOW TO SELF (Muted)
+                dom.mainScreen.srcObject = screenStream;
+                dom.mainScreen.muted = true; // IMPORTANT: Mute locally
+                dom.placeholder.style.display = 'none';
+                dom.shareBadge.style.display = 'block';
+
+                // Send to partner
+                screenCall = peer.call(conn.peer, screenStream, { metadata: { type: 'screen' } });
+
+                // Detect Stop
+                screenStream.getVideoTracks()[0].onended = () => stopShare();
+
+            } catch (err) {
+                console.error(err);
+                showToast("Screen Share Cancelled", "error");
+            }
+        }
+
+        function stopShare() {
+            if (screenCall) screenCall.close();
+            if (screenStream) screenStream.getTracks().forEach(track => track.stop());
+            
+            dom.mainScreen.srcObject = null;
+            dom.placeholder.style.display = 'flex';
+            dom.shareBadge.style.display = 'none';
+        }
+
+        function handleIncomingScreen(stream) {
+            dom.placeholder.style.display = 'none';
+            dom.shareBadge.style.display = 'none';
+            dom.mainScreen.srcObject = stream;
+            
+            // ✅ FIX 2: UNMUTE FOR VIEWER
+            dom.mainScreen.muted = false;
+
+            const playPromise = dom.mainScreen.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    dom.audioRescue.style.display = 'flex';
+                });
+            }
+        }
+
+        function enableAudio() {
+            dom.mainScreen.play();
+            dom.audioRescue.style.display = 'none';
+        }
+
+        // --- 4. CHAT & UTILS ---
+
+        function setupChat() {
+            conn.on('data', data => {
+                addMessage(data.msg, 'bubble-them');
+                if(!dom.chatDrawer.classList.contains('open')) {
+                    showToast("New Message Received", "success");
+                    document.getElementById('btn-chat').style.color = '#E50914';
+                }
+            });
+            conn.on('open', () => updateStatus(true));
+            conn.on('close', () => {
+                showToast("Partner Disconnected", "error");
+                updateStatus(false);
+            });
+        }
+
+        function sendMsg() {
+            const input = document.getElementById('msg-input');
+            const txt = input.value.trim();
+            if (!txt || !conn) return;
+
+            conn.send({ msg: txt });
+            addMessage(txt, 'bubble-me');
+            input.value = '';
+        }
+
+        function addMessage(txt, className) {
+            const div = document.createElement('div');
+            div.className = `chat-bubble ${className}`;
+            div.innerText = txt;
+            dom.chatBox.appendChild(div);
+            dom.chatBox.scrollTop = dom.chatBox.scrollHeight;
+        }
+
+        // --- 5. UI HELPERS ---
+
+        function showToast(msg, type) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.style.borderLeftColor = type === 'error' ? '#E50914' : '#00ff88';
+            toast.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'}"></i> ${msg}`;
+            
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.5s forwards';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        function updateStatus(isConnected) {
+            dom.statusDot.className = isConnected ? 'dot connected' : 'dot';
+        }
+
+        function copyID() {
+            navigator.clipboard.writeText(dom.roomIdDisplay.innerText);
+            showToast("Room ID Copied!", "success");
+        }
+
+        function toggleChat() {
+            dom.chatDrawer.classList.toggle('open');
+            document.getElementById('btn-chat').style.color = 'white';
+        }
+
+        function toggleMic() {
+            const t = localStream.getAudioTracks()[0];
+            t.enabled = !t.enabled;
+            document.getElementById('btn-mic').innerHTML = t.enabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+            document.getElementById('btn-mic').style.color = t.enabled ? 'white' : '#E50914';
+            showToast(t.enabled ? "Mic On" : "Mic Off", "success");
+        }
+
+        function toggleCam() {
+            const t = localStream.getVideoTracks()[0];
+            t.enabled = !t.enabled;
+            document.getElementById('btn-cam').innerHTML = t.enabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+            showToast(t.enabled ? "Camera On" : "Camera Off", "success");
+        }
+
+        function toggleFull() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        }
+
+        // Immersive Mode
+        function initImmersiveControls() {
+            const dock = document.getElementById('dock-bar');
+            const reset = () => {
+                dock.classList.remove('hidden');
+                document.body.style.cursor = 'default';
+                clearTimeout(mouseTimer);
+                mouseTimer = setTimeout(() => {
+                    if (!dock.matches(':hover') && !dom.chatDrawer.matches(':hover')) {
+                        dock.classList.add('hidden');
+                        document.body.style.cursor = 'none';
+                    }
+                }, 3000);
+            };
+            document.addEventListener('mousemove', reset);
+            document.addEventListener('touchstart', reset);
+        }
+    </script>
+</body>
+</html>
